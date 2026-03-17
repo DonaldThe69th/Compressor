@@ -2,6 +2,7 @@ import sys
 import os
 
 from PyQt6.QtWidgets import QApplication
+from utils.logger import setup_logging
 from ui.main_window import MainWindow
 
 # Absolute path to project root — used for loading assets
@@ -9,6 +10,8 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+    setup_logging()
+
     app = QApplication(sys.argv)
 
     qss_path = os.path.join(PROJECT_ROOT, "assets", "styles", "theme.qss")

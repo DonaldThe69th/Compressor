@@ -1,11 +1,11 @@
 """
 main_window.py
 --------------
-MainWindow with a tab layout:
-  - Process tab: drop zone + queue + run controls (always visible)
-  - Settings tab: basic output settings (format, resolution, fps, smart compress)
-  - Advanced tab: codec, CRF, bitrate, preset, audio
-  - Enhance tab: frame interpolation + upscaling
+MainWindow with tabs:
+  Process  — drop zone + queue + run controls
+  Settings — format, resolution, fps, smart compression, output folder
+  Advanced — codec, CRF, bitrate, preset, audio
+  Enhance  — frame interpolation + upscaling
 """
 
 import os
@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 from core.job_queue import JobQueue
 from core.video_job import VideoJob, JobStatus
 from core.video_probe import VideoProbe
+from utils.file_utils import FileUtils
 from ui.file_drop_widget import FileDropWidget
 from ui.job_list_widget import JobListWidget
 from ui.basic_settings import BasicSettingsPanel
@@ -54,7 +55,6 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Tab bar
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
         self._tabs.addTab(self._make_process_tab(), "Process")
@@ -63,36 +63,29 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._make_enhance_tab(), "Enhance")
         root.addWidget(self._tabs)
 
-        # Status bar
         self._status_bar = QStatusBar()
         self._status_bar.showMessage("Ready — drop video files to begin.")
         self.setStatusBar(self._status_bar)
 
     def _make_process_tab(self) -> QWidget:
-        """Main tab: drop zone + queue + action buttons. Nothing else."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 16, 16, 12)
         layout.setSpacing(10)
 
-        # Drop zone
         self._drop_widget = FileDropWidget()
         self._drop_widget.files_dropped.connect(self._on_files_dropped)
         layout.addWidget(self._drop_widget)
 
-        # Queue
         self._job_list = JobListWidget()
         self._job_list.job_remove_requested.connect(self._on_remove_job)
         layout.addWidget(self._job_list)
 
-        # Action bar
         layout.addWidget(self._make_divider())
         layout.addLayout(self._make_action_bar())
-
         return tab
 
     def _make_settings_tab(self) -> QWidget:
-        """Basic output settings: format, resolution, fps, smart compression."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -102,7 +95,6 @@ class MainWindow(QMainWindow):
         return tab
 
     def _make_advanced_tab(self) -> QWidget:
-        """Low-level FFmpeg controls: codec, CRF, bitrate, preset, audio."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -112,7 +104,6 @@ class MainWindow(QMainWindow):
         return tab
 
     def _make_enhance_tab(self) -> QWidget:
-        """Frame interpolation and upscaling controls."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -143,7 +134,7 @@ class MainWindow(QMainWindow):
         self._clear_btn = QPushButton("Clear Finished")
         self._clear_btn.setFixedHeight(34)
         self._clear_btn.clicked.connect(self._clear_finished)
-        self._clear_btn.setToolTip("Remove completed and failed jobs")
+        self._clear_btn.setToolTip("Remove completed and failed jobs from the list")
 
         bar.addWidget(self._start_btn)
         bar.addWidget(self._cancel_btn)
@@ -167,25 +158,36 @@ class MainWindow(QMainWindow):
     def _add_video(self, path: str):
         try:
             meta = VideoProbe.probe(path)
-            base, ext = os.path.splitext(path)
-            output_path = f"{base}_compressed{ext}"
 
-            job = VideoJob(input_path=path, output_path=output_path, source_metadata=meta)
+            # Build a job with default state first
+            job = VideoJob(input_path=path, source_metadata=meta)
 
-            # Apply current settings from all panels
+            # Apply output settings (format, resolution, fps)
             self._basic_settings.apply_to_job(job)
+            # Codec/preset overrides from advanced tab
             self._advanced_settings.apply_to_job(job)
+            # Enhance settings
             self._interp_panel.apply_to_job(job)
             self._upscale_panel.apply_to_job(job)
 
-            # If smart compression is on, let the advisor override codec/CRF
-            if job.use_smart_compression:
-                from core.compression import CompressionEngine
-                CompressionEngine().apply_smart(job)
+            # Build output path using the resolved format + user folder
+            output_folder = self._basic_settings.get_output_folder()
+            output_format = job.output_format or "mp4"
+            raw_path = FileUtils.build_output_path(
+                input_path=path,
+                output_folder=output_folder,
+                output_format=output_format,
+            )
+            job.output_path = FileUtils.ensure_unique(raw_path)
 
             self._queue.add_job(job)
-            self._job_list.add_job(job)
+            self._job_list.add_job(
+                job,
+                default_mode=self._basic_settings.get_default_mode(),
+                default_value=self._basic_settings.get_default_value(),
+            )
             self._status_bar.showMessage(f"Added: {os.path.basename(path)}")
+
         except Exception as e:
             QMessageBox.critical(self, "Failed to load file",
                                  f"{os.path.basename(path)}:\n{e}")

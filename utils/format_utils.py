@@ -1,66 +1,52 @@
 """
 format_utils.py
 ---------------
-Codec/container compatibility maps and format helper functions.
+Codec/container compatibility and display name mapping.
+
+All UI code uses display names (e.g. "H.264").
+All FFmpeg code uses internal names (e.g. "libx264").
+CODEC_TO_FFMPEG is the single translation table between the two.
 """
 
+# Display name → FFmpeg codec string
+CODEC_TO_FFMPEG: dict[str, str] = {
+    "H.264":    "libx264",
+    "H.265":    "libx265",
+    "VP9":      "libvpx-vp9",
+    "AV1":      "libaom-av1",
+    "WMV":      "wmv2",
+    "Copy":     "copy",
+}
 
-# Which video codecs are compatible with which containers
+# FFmpeg codec string → display name (reverse lookup)
+FFMPEG_TO_CODEC: dict[str, str] = {v: k for k, v in CODEC_TO_FFMPEG.items()}
+
+# Container format → supported display-name codecs
 CONTAINER_CODEC_MAP: dict[str, list[str]] = {
-    "mp4":  ["libx264", "libx265", "libaom-av1", "copy"],
-    "mkv":  ["libx264", "libx265", "libvpx-vp9", "libaom-av1", "copy"],
-    "webm": ["libvpx-vp9", "libaom-av1"],
-    "avi":  ["libx264", "copy"],
-    "mov":  ["libx264", "libx265", "copy"],
-    "flv":  ["libx264", "copy"],
-    "wmv":  ["copy"],
-}
-
-# Human-readable codec labels
-CODEC_LABELS: dict[str, str] = {
-    "libx264":    "H.264 (libx264)",
-    "libx265":    "H.265 / HEVC (libx265)",
-    "libvpx-vp9": "VP9 (libvpx-vp9)",
-    "libaom-av1": "AV1 (libaom-av1)",
-    "copy":        "Copy (no re-encode)",
+    "mp4":  ["H.264", "H.265", "AV1", "Copy"],
+    "mkv":  ["H.264", "H.265", "VP9", "AV1", "Copy"],
+    "webm": ["VP9", "AV1"],
+    "avi":  ["H.264", "Copy"],
+    "mov":  ["H.264", "H.265", "Copy"],
+    "flv":  ["H.264", "Copy"],
+    "wmv":  ["WMV", "Copy"],
 }
 
 
-class FormatUtils:
+def to_ffmpeg(display_name: str) -> str:
+    """Convert a display codec name to its FFmpeg string. Returns as-is if unknown."""
+    return CODEC_TO_FFMPEG.get(display_name, display_name)
 
-    @staticmethod
-    def compatible_codecs(container: str) -> list[str]:
-        """
-        Return the list of video codecs compatible with a given container.
 
-        Args:
-            container: Extension without dot, e.g. "mp4".
+def to_display(ffmpeg_name: str) -> str:
+    """Convert an FFmpeg codec string to its display name. Returns as-is if unknown."""
+    return FFMPEG_TO_CODEC.get(ffmpeg_name, ffmpeg_name)
 
-        Returns:
-            List of FFmpeg codec strings. Empty list if container is unknown.
-        """
-        return CONTAINER_CODEC_MAP.get(container.lower(), [])
 
-    @staticmethod
-    def codec_label(codec: str) -> str:
-        """Return a human-readable label for an FFmpeg codec string."""
-        return CODEC_LABELS.get(codec, codec)
+def compatible_codecs(container: str) -> list[str]:
+    """Return display-name codecs compatible with a given container."""
+    return CONTAINER_CODEC_MAP.get(container.lower(), [])
 
-    @staticmethod
-    def extension_for_format(fmt: str) -> str:
-        """
-        Return the file extension for a given format name.
-        Handles minor mismatches (e.g. 'h264' → 'mp4').
-        """
-        mapping = {
-            "h264": "mp4",
-            "hevc": "mp4",
-            "vp9":  "webm",
-            "av1":  "mkv",
-        }
-        return mapping.get(fmt.lower(), fmt.lower())
 
-    @staticmethod
-    def all_supported_formats() -> list[str]:
-        """Return all supported output container formats."""
-        return list(CONTAINER_CODEC_MAP.keys())
+def all_supported_formats() -> list[str]:
+    return list(CONTAINER_CODEC_MAP.keys())
