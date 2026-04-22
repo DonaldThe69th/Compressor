@@ -6,16 +6,18 @@ Panel for advanced FFmpeg parameters: codec, CRF, bitrate, preset, audio.
 
 from PyQt6.QtWidgets import (
     QWidget, QFormLayout, QComboBox, QSlider,
-    QSpinBox, QCheckBox, QLabel, QHBoxLayout
+    QSpinBox, QCheckBox, QLabel, QHBoxLayout, QGroupBox, QVBoxLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from core.video_job import VideoJob
 from core.compression import SPEED_PRESETS, CRF_DEFAULTS
+from ui.widgets import ConsistentComboBox, apply_surface_shadow
 from utils.format_utils import CODEC_TO_FFMPEG, FFMPEG_TO_CODEC
 
 
 VIDEO_CODECS = ["H.264", "H.265", "VP9", "AV1", "Copy"]
 AUDIO_CODECS = ["copy", "aac", "mp3", "opus", "flac", "none"]
+CPU_LOAD_LEVELS = ["Low", "Balanced", "High", "Maximum"]
 
 # Sentinel value meaning "let the worker decide based on source bitrate"
 CRF_AUTO = -1
@@ -37,12 +39,21 @@ class AdvancedSettingsPanel(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QFormLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4, 6, 4, 10)
+        root.setSpacing(18)
+
+        box = QGroupBox("Advanced Settings")
+        apply_surface_shadow(box, blur=24.0, offset_y=5.0)
+        root.addWidget(box)
+        root.addStretch()
+
+        layout = QFormLayout(box)
         layout.setSpacing(10)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(14, 18, 14, 14)
 
         # --- Video codec ---
-        self._codec_combo = QComboBox()
+        self._codec_combo = ConsistentComboBox()
         self._codec_combo.addItems(VIDEO_CODECS)
         self._codec_combo.setToolTip(
             "Video codec for re-encoding.\n'copy' passes the stream through without re-encoding."
@@ -75,7 +86,7 @@ class AdvancedSettingsPanel(QWidget):
         layout.addRow("CRF (quality):", crf_widget)
 
         # --- Encoding preset ---
-        self._preset_combo = QComboBox()
+        self._preset_combo = ConsistentComboBox()
         self._preset_combo.addItems(SPEED_PRESETS)
         self._preset_combo.setCurrentText("medium")
         self._preset_combo.setToolTip(
@@ -84,6 +95,16 @@ class AdvancedSettingsPanel(QWidget):
         )
         self._preset_combo.currentIndexChanged.connect(self.settings_changed)
         layout.addRow("Encoding Speed:", self._preset_combo)
+
+        self._cpu_combo = ConsistentComboBox()
+        self._cpu_combo.addItems(CPU_LOAD_LEVELS)
+        self._cpu_combo.setCurrentText("Balanced")
+        self._cpu_combo.setToolTip(
+            "Controls how hard encoding can lean on your CPU.\n"
+            "Use Low to keep the machine more responsive while processing."
+        )
+        self._cpu_combo.currentIndexChanged.connect(self.settings_changed)
+        layout.addRow("CPU Load:", self._cpu_combo)
 
         # --- Target bitrate ---
         self._bitrate_spin = QSpinBox()
@@ -98,7 +119,7 @@ class AdvancedSettingsPanel(QWidget):
         layout.addRow("Target Bitrate:", self._bitrate_spin)
 
         # --- Audio codec ---
-        self._audio_combo = QComboBox()
+        self._audio_combo = ConsistentComboBox()
         self._audio_combo.addItems(AUDIO_CODECS)
         self._audio_combo.setToolTip("'copy' passes audio through without re-encoding (fastest).")
         self._audio_combo.currentIndexChanged.connect(self.settings_changed)
@@ -147,6 +168,7 @@ class AdvancedSettingsPanel(QWidget):
             job.bitrate_kbps = None
 
         job.preset = self._preset_combo.currentText()
+        job.cpu_load = self._cpu_combo.currentText()
 
         audio = self._audio_combo.currentText()
         job.strip_audio = (audio == "none")
@@ -167,4 +189,5 @@ class AdvancedSettingsPanel(QWidget):
             self._bitrate_spin.setValue(job.bitrate_kbps)
         if job.preset:
             self._preset_combo.setCurrentText(job.preset)
+        self._cpu_combo.setCurrentText(job.cpu_load or "Balanced")
         self._strip_audio_check.setChecked(job.strip_audio)

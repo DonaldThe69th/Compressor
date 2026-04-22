@@ -1,9 +1,11 @@
 import sys
 import os
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 from utils.logger import setup_logging
 from ui.main_window import MainWindow
+from ui.startup_screen import StartupScreen
 
 # Absolute path to project root — used for loading assets
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -20,8 +22,23 @@ def main():
         with open(qss_path, "r") as f:
             app.setStyleSheet(f.read())
 
+    splash = StartupScreen()
+    splash.show()
+    app.processEvents()
+
+    splash.set_status("Loading controls and layouts...")
+    app.processEvents()
     window = MainWindow()
-    window.show()
+    window.warm_up_ui()
+
+    splash.set_status("Finalizing hover states and navigation...")
+    app.processEvents()
+
+    def finish_startup():
+        splash.close()
+        window.show()
+
+    QTimer.singleShot(120, finish_startup)
     sys.exit(app.exec())
 
 

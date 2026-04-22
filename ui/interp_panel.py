@@ -5,11 +5,11 @@ UI panel for frame interpolation settings.
 Currently exposes 2x mode via minterpolate.
 """
 
-
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QComboBox, QFormLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QFormLayout, QGroupBox
 from PyQt6.QtCore import pyqtSignal
 from core.video_job import VideoJob, InterpolationMode
 from core.interpolation import InterpolationEngine
+from ui.widgets import ConsistentComboBox, apply_surface_shadow
 
 
 class InterpPanel(QWidget):
@@ -28,7 +28,16 @@ class InterpPanel(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4, 6, 4, 10)
+        root.setSpacing(0)
+
+        box = QGroupBox("Frame Interpolation")
+        apply_surface_shadow(box, blur=24.0, offset_y=5.0)
+        root.addWidget(box)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(14, 18, 14, 14)
 
         # Enable toggle
         self._enable_check = QCheckBox("Enable Frame Interpolation")
@@ -40,7 +49,7 @@ class InterpPanel(QWidget):
         self._options_widget.setEnabled(False)
         form = QFormLayout(self._options_widget)
 
-        self._mode_combo = QComboBox()
+        self._mode_combo = ConsistentComboBox()
         self._mode_combo.addItem("2× (double frame rate)", InterpolationMode.TWO_X)
         self._mode_combo.currentIndexChanged.connect(self.settings_changed)
         form.addRow("Mode:", self._mode_combo)

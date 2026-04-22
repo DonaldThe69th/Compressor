@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.idea/
+
+*.log
+
+config/user_prefs.json
+.venv/
+todo/

@@ -6,12 +6,14 @@ UI panel for video upscaling settings.
 
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QCheckBox, QComboBox,
+    QWidget, QVBoxLayout, QCheckBox,
     QFormLayout, QLabel, QSpinBox, QHBoxLayout
 )
+from PyQt6.QtWidgets import QGroupBox
 from PyQt6.QtCore import pyqtSignal
 from core.video_job import VideoJob, UpscaleMode
 from core.upscaling import UpscalingEngine, UPSCALE_PRESETS
+from ui.widgets import ConsistentComboBox, apply_surface_shadow
 
 
 class UpscalePanel(QWidget):
@@ -30,7 +32,16 @@ class UpscalePanel(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4, 6, 4, 10)
+        root.setSpacing(0)
+
+        box = QGroupBox("Upscaling")
+        apply_surface_shadow(box, blur=24.0, offset_y=5.0)
+        root.addWidget(box)
+
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(14, 18, 14, 14)
 
         # Enable toggle
         self._enable_check = QCheckBox("Enable Upscaling")
@@ -43,14 +54,14 @@ class UpscalePanel(QWidget):
         form = QFormLayout(self._options_widget)
 
         # Method
-        self._method_combo = QComboBox()
+        self._method_combo = ConsistentComboBox()
         self._method_combo.addItem("Lanczos (FFmpeg built-in)", UpscaleMode.LANCZOS)
         self._method_combo.addItem("Real-ESRGAN (AI) — coming soon", None)
         self._method_combo.currentIndexChanged.connect(self._on_method_changed)
         form.addRow("Method:", self._method_combo)
 
         # Preset or custom
-        self._preset_combo = QComboBox()
+        self._preset_combo = ConsistentComboBox()
         self._preset_combo.addItem("Custom", None)
         for name in UPSCALE_PRESETS:
             self._preset_combo.addItem(name, name)

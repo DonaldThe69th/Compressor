@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal
 from core.video_job import VideoJob, SizeMode
+from ui.widgets import ConsistentComboBox, apply_surface_shadow
 
 
 COMMON_RESOLUTIONS = [
@@ -31,8 +32,8 @@ class BasicSettingsPanel(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(14)
+        root.setContentsMargins(4, 6, 4, 10)
+        root.setSpacing(18)
         root.addWidget(self._make_default_group())
         root.addWidget(self._make_output_group())
         root.addStretch()
@@ -43,6 +44,7 @@ class BasicSettingsPanel(QWidget):
 
     def _make_default_group(self) -> QGroupBox:
         box = QGroupBox("Default Compression (applied to each new file)")
+        apply_surface_shadow(box, blur=24.0, offset_y=5.0)
         layout = QVBoxLayout(box)
         layout.setSpacing(8)
 
@@ -51,7 +53,6 @@ class BasicSettingsPanel(QWidget):
             "You can override it per-file directly in the queue."
         )
         note.setObjectName("metaLabel")
-        note.setStyleSheet("color: #888888; font-size: 11px;")
         layout.addWidget(note)
 
         # Mode radio
@@ -106,16 +107,17 @@ class BasicSettingsPanel(QWidget):
 
     def _make_output_group(self) -> QGroupBox:
         box = QGroupBox("Output")
+        apply_surface_shadow(box, blur=24.0, offset_y=5.0)
         form = QFormLayout(box)
         form.setSpacing(8)
 
-        self._format_combo = QComboBox()
+        self._format_combo = ConsistentComboBox()
         self._format_combo.addItems(OUTPUT_FORMATS)
         self._format_combo.setToolTip("Output container format")
         self._format_combo.currentIndexChanged.connect(self.settings_changed)
         form.addRow("Format:", self._format_combo)
 
-        self._resolution_combo = QComboBox()
+        self._resolution_combo = ConsistentComboBox()
         self._resolution_combo.addItems(COMMON_RESOLUTIONS)
         self._resolution_combo.setToolTip("Output resolution")
         self._resolution_combo.currentIndexChanged.connect(self._on_resolution_changed)

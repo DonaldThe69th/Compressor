@@ -1,46 +1,56 @@
 """
 job_list_widget.py
 ------------------
-Queue of VideoJob rows. Each row has an inline compression target control
-(% or MB) that pre-fills from the global default but can be overridden.
+Queue of VideoJob rows with inline compression target controls.
 """
 
-import os
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QProgressBar, QPushButton, QScrollArea, QFrame,
-    QSizePolicy, QLineEdit, QComboBox
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QRegularExpression
+from PyQt6.QtCore import QRegularExpression, Qt, pyqtSignal
 from PyQt6.QtGui import QRegularExpressionValidator
-from core.video_job import VideoJob, JobStatus, SizeMode
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
+
+from core.video_job import JobStatus, SizeMode, VideoJob
+from ui.widgets import ConsistentComboBox
 
 
 STATUS_STYLE = {
-    JobStatus.PENDING:   ("Pending",    "color: #404040;"),
-    JobStatus.RUNNING:   ("Processing", "color: #4A9FFF;"),
-    JobStatus.DONE:      ("Done",       "color: #3dd68c;"),
-    JobStatus.FAILED:    ("Failed",     "color: #f87171;"),
-    JobStatus.CANCELLED: ("Cancelled",  "color: #fbbf24;"),
+    JobStatus.PENDING: ("Pending", "color: #8c7b6b;"),
+    JobStatus.RUNNING: ("Processing", "color: #cc7a2f;"),
+    JobStatus.DONE: ("Done", "color: #4d8b57;"),
+    JobStatus.FAILED: ("Failed", "color: #c24f42;"),
+    JobStatus.CANCELLED: ("Cancelled", "color: #b7882c;"),
 }
 
-PROGRESS_CHUNK_RUNNING   = "QProgressBar::chunk { background-color: #4A9FFF; border-radius: 0; }"
-PROGRESS_CHUNK_DONE      = "QProgressBar::chunk { background-color: #3dd68c; border-radius: 0; }"
-PROGRESS_CHUNK_FAILED    = "QProgressBar::chunk { background-color: #f87171; border-radius: 0; }"
-PROGRESS_CHUNK_CANCELLED = "QProgressBar::chunk { background-color: #fbbf24; border-radius: 0; }"
+PROGRESS_CHUNK_RUNNING = "QProgressBar::chunk { background-color: #cc7a2f; border-radius: 0; }"
+PROGRESS_CHUNK_DONE = "QProgressBar::chunk { background-color: #4d8b57; border-radius: 0; }"
+PROGRESS_CHUNK_FAILED = "QProgressBar::chunk { background-color: #c24f42; border-radius: 0; }"
+PROGRESS_CHUNK_CANCELLED = "QProgressBar::chunk { background-color: #b7882c; border-radius: 0; }"
 
 
 class JobRowWidget(QWidget):
     remove_requested = pyqtSignal(object)
 
-    def __init__(self, job: VideoJob,
-                 default_mode: SizeMode = SizeMode.PERCENT,
-                 default_value: float = 50.0,
-                 parent=None):
+    def __init__(
+        self,
+        job: VideoJob,
+        default_mode: SizeMode = SizeMode.PERCENT,
+        default_value: float = 50.0,
+        parent=None,
+    ):
         super().__init__(parent)
         self.job = job
         self.setObjectName("jobRow")
-        self.setFixedHeight(66)
+        self.setFixedHeight(72)
         self._build_ui(default_mode, default_value)
         self._sync_to_job()
 
@@ -49,15 +59,13 @@ class JobRowWidget(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Content row
         content = QWidget()
         top = QHBoxLayout(content)
-        top.setContentsMargins(16, 10, 14, 10)
+        top.setContentsMargins(16, 12, 14, 12)
         top.setSpacing(10)
 
-        # --- Left: filename + metadata ---
         info = QVBoxLayout()
-        info.setSpacing(3)
+        info.setSpacing(4)
 
         self._name_label = QLabel(self.job.display_name())
         self._name_label.setObjectName("jobName")
@@ -72,20 +80,19 @@ class JobRowWidget(QWidget):
         info.addWidget(self._meta_label)
         top.addLayout(info)
 
-        # --- Right: size control + status + remove ---
-        self._mode_combo = QComboBox()
-        self._mode_combo.addItem("%",  SizeMode.PERCENT)
+        self._mode_combo = ConsistentComboBox()
+        self._mode_combo.addItem("%", SizeMode.PERCENT)
         self._mode_combo.addItem("MB", SizeMode.MB)
-        self._mode_combo.setFixedWidth(54)
-        self._mode_combo.setFixedHeight(26)
+        self._mode_combo.setFixedWidth(58)
+        self._mode_combo.setFixedHeight(30)
         self._mode_combo.setCurrentIndex(0 if default_mode == SizeMode.PERCENT else 1)
-        self._mode_combo.setToolTip("% = reduce by percentage  |  MB = target file size")
+        self._mode_combo.setToolTip("% = reduce by percentage | MB = target file size")
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
 
         self._value_input = QLineEdit()
         self._value_input.setObjectName("jobValueInput")
-        self._value_input.setFixedWidth(72)
-        self._value_input.setFixedHeight(26)
+        self._value_input.setFixedWidth(76)
+        self._value_input.setFixedHeight(30)
         self._value_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         self._value_input.setValidator(
             QRegularExpressionValidator(QRegularExpression(r"^\d{0,6}(\.\d{0,1})?$"))
@@ -95,13 +102,17 @@ class JobRowWidget(QWidget):
 
         self._status_label = QLabel("Pending")
         self._status_label.setObjectName("jobStatus")
-        self._status_label.setFixedWidth(72)
-        self._status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._status_label.setStyleSheet("color: #404040; font-size: 11px; font-weight: 600;")
+        self._status_label.setFixedWidth(84)
+        self._status_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._status_label.setStyleSheet(
+            "color: #8c7b6b; font-size: 11px; font-weight: 600;"
+        )
 
-        self._remove_btn = QPushButton("✕")
+        self._remove_btn = QPushButton("x")
         self._remove_btn.setObjectName("removeButton")
-        self._remove_btn.setFixedSize(22, 22)
+        self._remove_btn.setFixedSize(24, 24)
         self._remove_btn.setToolTip("Remove from queue")
         self._remove_btn.clicked.connect(lambda: self.remove_requested.emit(self.job))
 
@@ -112,42 +123,39 @@ class JobRowWidget(QWidget):
 
         outer.addWidget(content)
 
-        # Full-width progress bar at the bottom edge
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(2)
+        self._progress_bar.setFixedHeight(3)
         self._progress_bar.setStyleSheet(
-            "QProgressBar { background: #1e1e1e; border: none; border-radius: 0; }"
+            "QProgressBar { background: #eadfce; border: none; border-radius: 0; }"
             + PROGRESS_CHUNK_RUNNING
         )
         outer.addWidget(self._progress_bar)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def _build_meta(self) -> str:
-        m = self.job.source_metadata
-        if not m:
+        meta = self.job.source_metadata
+        if not meta:
             return ""
-        fps = f"{m.fps:.3f}".rstrip("0").rstrip(".")
-        mb  = m.file_size / (1024 * 1024) if m.file_size else 0
-        return f"{m.width}×{m.height}  {fps} fps  {m.codec_name.upper()}  {mb:.1f} MB"
+        fps = f"{meta.fps:.3f}".rstrip("0").rstrip(".")
+        mb = meta.file_size / (1024 * 1024) if meta.file_size else 0
+        return f"{meta.width}x{meta.height}  {fps} fps  {meta.codec_name.upper()}  {mb:.1f} MB"
 
     def _apply_mode_range(self, mode: SizeMode, value: float):
         self._value_input.blockSignals(True)
         if mode == SizeMode.PERCENT:
-            self._value_input.setPlaceholderText("1–99")
+            self._value_input.setPlaceholderText("1-99")
             self._value_input.setToolTip(
                 "Reduce file size by this percentage.\n"
-                "e.g. 50 → output is half the source size."
+                "For example, 50 means output is half the source size."
             )
         else:
             self._value_input.setPlaceholderText("MB")
             self._value_input.setToolTip("Target output file size in megabytes.")
-        self._value_input.setText(str(int(value)) if value == int(value) else f"{value:.1f}")
+        self._value_input.setText(
+            str(int(value)) if value == int(value) else f"{value:.1f}"
+        )
         self._value_input.blockSignals(False)
 
     def _current_mode(self) -> SizeMode:
@@ -165,10 +173,6 @@ class JobRowWidget(QWidget):
         except ValueError:
             pass
 
-    # ------------------------------------------------------------------
-    # Called by JobListWidget
-    # ------------------------------------------------------------------
-
     def set_progress(self, pct: float):
         self._progress_bar.setValue(int(pct))
 
@@ -177,7 +181,9 @@ class JobRowWidget(QWidget):
         self._status_label.setText(text)
         self._status_label.setStyleSheet(f"{style} font-size: 11px; font-weight: 600;")
 
-        bar_base = "QProgressBar { background: #1e1e1e; border: none; border-radius: 0; } "
+        bar_base = (
+            "QProgressBar { background: #eadfce; border: none; border-radius: 0; } "
+        )
         if status == JobStatus.DONE:
             self._progress_bar.setValue(100)
             self._progress_bar.setStyleSheet(bar_base + PROGRESS_CHUNK_DONE)
@@ -188,7 +194,7 @@ class JobRowWidget(QWidget):
         elif status == JobStatus.RUNNING:
             self._progress_bar.setStyleSheet(bar_base + PROGRESS_CHUNK_RUNNING)
 
-        is_running = (status == JobStatus.RUNNING)
+        is_running = status == JobStatus.RUNNING
         self._mode_combo.setEnabled(not is_running)
         self._value_input.setEnabled(not is_running)
         self._remove_btn.setEnabled(not is_running)
@@ -207,10 +213,9 @@ class JobListWidget(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header
         header = QWidget()
         header.setObjectName("queueHeader")
-        header.setFixedHeight(28)
+        header.setFixedHeight(34)
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(16, 0, 14, 0)
 
@@ -219,14 +224,15 @@ class JobListWidget(QWidget):
 
         self._count_label = QLabel("0 files")
         self._count_label.setObjectName("queueCountLabel")
-        self._count_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._count_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
 
         h_layout.addWidget(queue_lbl)
         h_layout.addStretch()
         h_layout.addWidget(self._count_label)
         outer.addWidget(header)
 
-        # Scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -238,22 +244,25 @@ class JobListWidget(QWidget):
         self._list_layout.setSpacing(0)
         self._list_layout.setContentsMargins(0, 0, 0, 0)
 
-        self._empty_label = QLabel("No files added yet.\nDrop videos above or click to browse.")
+        self._empty_label = QLabel(
+            "No files added yet.\nAdd a source above to start building your queue."
+        )
         self._empty_label.setObjectName("metaLabel")
         self._empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._empty_label.setStyleSheet("color: #303030; padding: 32px; font-size: 12px;")
+        self._empty_label.setStyleSheet(
+            "color: #bfbeb3; padding: 42px; font-size: 12px;"
+        )
         self._list_layout.addWidget(self._empty_label)
 
         scroll.setWidget(self._container)
         outer.addWidget(scroll)
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    def add_job(self, job: VideoJob,
-                default_mode: SizeMode = SizeMode.PERCENT,
-                default_value: float = 50.0):
+    def add_job(
+        self,
+        job: VideoJob,
+        default_mode: SizeMode = SizeMode.PERCENT,
+        default_value: float = 50.0,
+    ):
         self._empty_label.setVisible(False)
         row = JobRowWidget(job, default_mode=default_mode, default_value=default_value)
         row.remove_requested.connect(self.job_remove_requested)
@@ -276,6 +285,6 @@ class JobListWidget(QWidget):
         self._refresh_count()
 
     def _refresh_count(self):
-        n = len(self._rows)
-        self._count_label.setText(f"{n} file{'s' if n != 1 else ''}")
-        self._empty_label.setVisible(n == 0)
+        count = len(self._rows)
+        self._count_label.setText(f"{count} file{'s' if count != 1 else ''}")
+        self._empty_label.setVisible(count == 0)

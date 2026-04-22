@@ -1,34 +1,43 @@
 """
 main_window.py
 --------------
-MainWindow with sidebar navigation:
-  Process  — drop zone + queue + run controls
-  Settings — format, resolution, fps, output folder
-  Advanced — codec, CRF, bitrate, preset, audio
-  Enhance  — frame interpolation + upscaling
+Main application shell with sidebar navigation and processing pages.
 """
 
 import os
+
+from PyQt6.QtCore import QPointF, QTimer
+from PyQt6.QtGui import QCursor, QEnterEvent
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QMessageBox, QStatusBar, QStackedWidget,
-    QLabel, QFrame, QSizePolicy, QScrollArea
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QStackedWidget,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from core.job_queue import JobQueue
-from core.video_job import VideoJob, JobStatus
+from core.video_job import JobStatus, VideoJob
 from core.video_probe import VideoProbe
-from utils.file_utils import FileUtils
-from ui.file_drop_widget import FileDropWidget
-from ui.job_list_widget import JobListWidget
-from ui.basic_settings import BasicSettingsPanel
 from ui.advanced_settings import AdvancedSettingsPanel
+from ui.basic_settings import BasicSettingsPanel
+from ui.file_drop_widget import FileDropWidget
 from ui.interp_panel import InterpPanel
+from ui.job_list_widget import JobListWidget
 from ui.upscale_panel import UpscalePanel
+from ui.widgets import NavButton, apply_surface_shadow
+from utils.file_utils import FileUtils
 
 
 class MainWindow(QMainWindow):
-
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -41,8 +50,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self.setWindowTitle("Compressor")
-        self.resize(900, 660)
-        self.setMinimumSize(720, 520)
+        self.resize(980, 720)
+        self.setMinimumSize(800, 560)
         self.setAcceptDrops(True)
 
     # ------------------------------------------------------------------
@@ -52,6 +61,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
+
         root = QHBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -66,39 +76,43 @@ class MainWindow(QMainWindow):
         root.addWidget(self._stack)
 
         self._status_bar = QStatusBar()
-        self._status_bar.showMessage("Ready — drop video files to begin.")
+        self._status_bar.showMessage("Ready - drop video files to begin.")
         self.setStatusBar(self._status_bar)
 
     def _make_sidebar(self) -> QWidget:
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(172)
+        sidebar.setFixedWidth(220)
 
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(0, 0, 0, 20)
-        layout.setSpacing(0)
+        layout.setContentsMargins(10, 0, 10, 20)
+        layout.setSpacing(6)
 
         header = QWidget()
         header.setObjectName("sidebarHeader")
         h_layout = QVBoxLayout(header)
-        h_layout.setContentsMargins(20, 22, 20, 22)
+        h_layout.setContentsMargins(22, 28, 22, 22)
+        h_layout.setSpacing(4)
+
         app_title = QLabel("Compressor")
         app_title.setObjectName("appTitle")
+        app_subtitle = QLabel("Desktop video lab")
+        app_subtitle.setObjectName("appSubtitle")
         h_layout.addWidget(app_title)
+        h_layout.addWidget(app_subtitle)
         layout.addWidget(header)
 
         div = QFrame()
         div.setFrameShape(QFrame.Shape.HLine)
         div.setObjectName("sidebarDivider")
         layout.addWidget(div)
-        layout.addSpacing(6)
+        layout.addSpacing(12)
 
         self._nav_buttons: list[QPushButton] = []
-        for label, idx in (("Process", 0), ("Settings", 1), ("Advanced", 2), ("Enhance", 3)):
-            btn = QPushButton(f"   {label}")
+        nav_items = (("Process", 0), ("Settings", 1), ("Advanced", 2), ("Enhance", 3))
+        for label, idx in nav_items:
+            btn = NavButton(label)
             btn.setObjectName("navButton")
-            btn.setCheckable(True)
-            btn.setFixedHeight(40)
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             btn.clicked.connect(lambda _checked, i=idx: self._switch_page(i))
             layout.addWidget(btn)
@@ -112,108 +126,182 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(index)
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
+        QTimer.singleShot(0, self._refresh_hover_under_cursor)
+
+    def warm_up_ui(self):
+        """Pre-polish pages so the first interactions feel less cold."""
+        self.ensurePolished()
+        self.centralWidget().layout().activate()
+        for idx in range(self._stack.count()):
+            self._stack.setCurrentIndex(idx)
+            page = self._stack.widget(idx)
+            page.ensurePolished()
+            if page.layout():
+                page.layout().activate()
+        self._stack.setCurrentIndex(0)
+        for btn in self._nav_buttons:
+            btn.update()
+
+    def _refresh_hover_under_cursor(self):
+        widget = QApplication.widgetAt(QCursor.pos())
+        if widget is None or widget.window() is not self:
+            return
+
+        local_pos = widget.mapFromGlobal(QCursor.pos())
+        posf = QPointF(local_pos)
+        globalf = QPointF(QCursor.pos())
+        QApplication.sendEvent(widget, QEnterEvent(posf, globalf, globalf))
+        widget.update()
 
     def _make_process_page(self) -> QWidget:
         page = QWidget()
         page.setObjectName("contentPage")
+
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 16)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
+
+        layout.addWidget(
+            self._make_page_header(
+                "Process Queue",
+                "Import files, tune the queue, and launch a polished batch encode flow.",
+            )
+        )
 
         self._drop_widget = FileDropWidget()
         self._drop_widget.files_dropped.connect(self._on_files_dropped)
-        layout.addWidget(self._drop_widget)
+        layout.addWidget(self._wrap_card(self._drop_widget, "heroCard"))
 
         self._job_list = JobListWidget()
         self._job_list.job_remove_requested.connect(self._on_remove_job)
-        layout.addWidget(self._job_list)
+        layout.addWidget(self._wrap_card(self._job_list, "queueCard"), 1)
 
         layout.addLayout(self._make_action_bar())
         return page
 
     def _make_settings_page(self) -> QWidget:
-        page = QWidget()
-        page.setObjectName("contentPage")
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        inner = QWidget()
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(24, 24, 24, 24)
-        self._basic_settings = BasicSettingsPanel()
-        layout.addWidget(self._basic_settings)
-        layout.addStretch()
-        scroll.setWidget(inner)
-        outer = QVBoxLayout(page)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
-        return page
-
-    def _make_advanced_page(self) -> QWidget:
-        page = QWidget()
-        page.setObjectName("contentPage")
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        inner = QWidget()
-        layout = QVBoxLayout(inner)
-        layout.setContentsMargins(24, 24, 24, 24)
-        self._advanced_settings = AdvancedSettingsPanel()
-        layout.addWidget(self._advanced_settings)
-        layout.addStretch()
-        scroll.setWidget(inner)
-        outer = QVBoxLayout(page)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
-        return page
-
-    def _make_enhance_page(self) -> QWidget:
-        page = QWidget()
-        page.setObjectName("contentPage")
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
         inner = QWidget()
         layout = QVBoxLayout(inner)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
+
+        layout.addWidget(
+            self._make_page_header(
+                "Output Settings",
+                "Pick your export format, sizing defaults, and where finished files should land.",
+            )
+        )
+
+        self._basic_settings = BasicSettingsPanel()
+        layout.addWidget(self._basic_settings)
+        layout.addStretch()
+        return self._wrap_scroll_page(inner)
+
+    def _make_advanced_page(self) -> QWidget:
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        layout.addWidget(
+            self._make_page_header(
+                "Advanced Controls",
+                "Shape codec behavior, audio strategy, and how hard the app should drive your CPU.",
+            )
+        )
+
+        self._advanced_settings = AdvancedSettingsPanel()
+        layout.addWidget(self._advanced_settings)
+        layout.addStretch()
+        return self._wrap_scroll_page(inner)
+
+    def _make_enhance_page(self) -> QWidget:
+        inner = QWidget()
+        layout = QVBoxLayout(inner)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        layout.addWidget(
+            self._make_page_header(
+                "Enhance",
+                "Turn on interpolation and upscaling while keeping processing cost visible and manageable.",
+            )
+        )
+
         self._interp_panel = InterpPanel()
         self._upscale_panel = UpscalePanel()
         layout.addWidget(self._interp_panel)
         layout.addWidget(self._make_divider())
         layout.addWidget(self._upscale_panel)
         layout.addStretch()
-        scroll.setWidget(inner)
-        outer = QVBoxLayout(page)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
-        return page
+        return self._wrap_scroll_page(inner)
 
     def _make_action_bar(self) -> QHBoxLayout:
         bar = QHBoxLayout()
-        bar.setSpacing(8)
+        bar.setSpacing(10)
 
-        self._start_btn = QPushButton("▶   Start Queue")
+        self._start_btn = QPushButton("Start Queue")
         self._start_btn.setObjectName("primaryButton")
-        self._start_btn.setFixedHeight(36)
+        self._start_btn.setFixedHeight(38)
         self._start_btn.clicked.connect(self._start_queue)
-        self._start_btn.setToolTip("Begin processing all pending jobs")
+        self._start_btn.setToolTip("Begin processing all pending jobs.")
 
         self._cancel_btn = QPushButton("Cancel")
-        self._cancel_btn.setFixedHeight(36)
+        self._cancel_btn.setFixedHeight(38)
         self._cancel_btn.clicked.connect(self._queue.cancel_current)
-        self._cancel_btn.setToolTip("Cancel the currently running job")
+        self._cancel_btn.setToolTip("Cancel the currently running job.")
 
         self._clear_btn = QPushButton("Clear Finished")
-        self._clear_btn.setFixedHeight(36)
+        self._clear_btn.setFixedHeight(38)
         self._clear_btn.clicked.connect(self._clear_finished)
-        self._clear_btn.setToolTip("Remove completed and failed jobs from the list")
+        self._clear_btn.setToolTip("Remove completed and failed jobs from the list.")
 
         bar.addWidget(self._start_btn)
         bar.addWidget(self._cancel_btn)
         bar.addStretch()
         bar.addWidget(self._clear_btn)
         return bar
+
+    def _make_page_header(self, title: str, subtitle: str) -> QWidget:
+        header = QWidget()
+        header.setObjectName("pageHeader")
+        layout = QVBoxLayout(header)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("pageTitle")
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("pageSubtitle")
+        subtitle_label.setWordWrap(True)
+
+        layout.addWidget(title_label)
+        layout.addWidget(subtitle_label)
+        return header
+
+    def _wrap_card(self, widget: QWidget, object_name: str) -> QWidget:
+        card = QFrame()
+        card.setObjectName(object_name)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(0)
+        layout.addWidget(widget)
+        apply_surface_shadow(card)
+        return card
+
+    def _wrap_scroll_page(self, inner: QWidget) -> QWidget:
+        page = QWidget()
+        page.setObjectName("contentPage")
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(inner)
+
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(scroll)
+        return page
 
     def _make_divider(self) -> QFrame:
         line = QFrame()
@@ -236,6 +324,7 @@ class MainWindow(QMainWindow):
             self._advanced_settings.apply_to_job(job)
             self._interp_panel.apply_to_job(job)
             self._upscale_panel.apply_to_job(job)
+
             output_folder = self._basic_settings.get_output_folder()
             output_format = job.output_format or "mp4"
             raw_path = FileUtils.build_output_path(
@@ -244,6 +333,7 @@ class MainWindow(QMainWindow):
                 output_format=output_format,
             )
             job.output_path = FileUtils.ensure_unique(raw_path)
+
             self._queue.add_job(job)
             self._job_list.add_job(
                 job,
@@ -251,9 +341,12 @@ class MainWindow(QMainWindow):
                 default_value=self._basic_settings.get_default_value(),
             )
             self._status_bar.showMessage(f"Added: {os.path.basename(path)}")
-        except Exception as e:
-            QMessageBox.critical(self, "Failed to load file",
-                                 f"{os.path.basename(path)}:\n{e}")
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Failed to load file",
+                f"{os.path.basename(path)}:\n{exc}",
+            )
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():

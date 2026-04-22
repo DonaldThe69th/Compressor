@@ -56,6 +56,7 @@ class VideoJob:
     audio_codec:      Optional[str]   = None
     preset:           Optional[str]   = "medium"
     strip_audio:      bool            = False
+    cpu_load:         str             = "Balanced"
 
     # --- Frame interpolation ---
     interpolation_mode: InterpolationMode = InterpolationMode.NONE

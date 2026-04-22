@@ -26,6 +26,12 @@ FORMAT_DEFAULT_CODEC = {
 
 NO_PRESET_CODECS = {"libvpx-vp9", "libaom-av1", "wmv2", "copy"}
 CRF_SPECIAL      = {"libvpx-vp9", "libaom-av1"}
+CPU_THREADS = {
+    "Low": 2,
+    "Balanced": 4,
+    "High": 8,
+    "Maximum": 0,
+}
 
 
 class FFmpegWorker(QThread):
@@ -130,6 +136,9 @@ class FFmpegWorker(QThread):
         # Video codec + bitrate
         cmd += ["-c:v", codec]
         cmd += ["-b:v", f"{plan.target_bitrate_kbps}k"]
+        threads = CPU_THREADS.get(job.cpu_load, CPU_THREADS["Balanced"])
+        if threads > 0:
+            cmd += ["-threads", str(threads)]
         if codec in CRF_SPECIAL:
             cmd += ["-crf", "10"]
         if plan.preset and codec not in NO_PRESET_CODECS:
