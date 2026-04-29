@@ -409,7 +409,7 @@ class JobRowWidget(QWidget):
             if InterpolationEngine.is_rife_available():
                 self._interp_hint.setText("Higher quality, heavier GPU load.")
             else:
-                self._interp_hint.setText("RIFE binary not found in ai/rife or PATH.")
+                self._interp_hint.setText("RIFE binary not found in ai/frame_generation/rife or PATH.")
         else:
             self._interp_hint.setText("Built in, lighter setup, lower quality.")
 
@@ -429,7 +429,7 @@ class JobRowWidget(QWidget):
             if UpscalingEngine.is_realesrgan_available():
                 self._upscale_hint.setText("Best visual detail, heavier GPU load.")
             else:
-                self._upscale_hint.setText("Real-ESRGAN binary not found in ai/realesrgan or PATH.")
+                self._upscale_hint.setText("Real-ESRGAN binary not found in ai/upscaling/realesrgan or PATH.")
         else:
             self._upscale_hint.setText("Fast built-in resize with lighter system load.")
 

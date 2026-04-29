@@ -35,7 +35,11 @@ def app_base_dirs() -> list[Path]:
     return unique
 
 
-def _binary_candidates(tool_folder: str, binary_name: str) -> list[Path]:
+def _binary_candidates(
+    tool_folder: str,
+    binary_name: str,
+    ai_category: str | None = None,
+) -> list[Path]:
     names = [binary_name]
     if sys.platform.startswith("win") and not binary_name.endswith(".exe"):
         names.insert(0, f"{binary_name}.exe")
@@ -44,6 +48,13 @@ def _binary_candidates(tool_folder: str, binary_name: str) -> list[Path]:
     for base in app_base_dirs():
         ai_root = base / "ai"
         tool_root = base / "tools"
+        if ai_category:
+            category_root = ai_root / ai_category
+            candidates.extend((category_root / tool_folder / name) for name in names)
+            candidates.extend((category_root / f"{tool_folder}-ncnn-vulkan" / name) for name in names)
+            candidates.extend((category_root / binary_name / name) for name in names)
+
+        # Keep the previous flat ai/<tool>/ layout working for existing bundles.
         candidates.extend((ai_root / tool_folder / name) for name in names)
         candidates.extend((ai_root / f"{tool_folder}-ncnn-vulkan" / name) for name in names)
         candidates.extend((ai_root / binary_name / name) for name in names)
@@ -53,8 +64,12 @@ def _binary_candidates(tool_folder: str, binary_name: str) -> list[Path]:
     return candidates
 
 
-def resolve_tool_binary(tool_folder: str, binary_name: str) -> Path | None:
-    for candidate in _binary_candidates(tool_folder, binary_name):
+def resolve_tool_binary(
+    tool_folder: str,
+    binary_name: str,
+    ai_category: str | None = None,
+) -> Path | None:
+    for candidate in _binary_candidates(tool_folder, binary_name, ai_category):
         if candidate.exists():
             return candidate
 
@@ -71,8 +86,8 @@ def resolve_tool_binary(tool_folder: str, binary_name: str) -> Path | None:
 
 
 def resolve_rife_binary() -> Path | None:
-    return resolve_tool_binary("rife", "rife-ncnn-vulkan")
+    return resolve_tool_binary("rife", "rife-ncnn-vulkan", ai_category="frame_generation")
 
 
 def resolve_realesrgan_binary() -> Path | None:
-    return resolve_tool_binary("realesrgan", "realesrgan-ncnn-vulkan")
+    return resolve_tool_binary("realesrgan", "realesrgan-ncnn-vulkan", ai_category="upscaling")

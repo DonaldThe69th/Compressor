@@ -549,7 +549,7 @@ class FFmpegWorker(QThread):
         if binary_path is None:
             raise ValueError(
                 "Real-ESRGAN is selected but its binary was not found. "
-                "Bundle it in ai/realesrgan/ or add it to PATH."
+                "Bundle it in ai/upscaling/realesrgan/ or add it to PATH."
             )
 
         cmd = [
@@ -579,7 +579,7 @@ class FFmpegWorker(QThread):
         if binary_path is None:
             raise ValueError(
                 "RIFE is selected but its binary was not found. "
-                "Bundle it in ai/rife/ or add it to PATH."
+                "Bundle it in ai/frame_generation/rife/ or add it to PATH."
             )
         cmd = [
             str(binary_path),
